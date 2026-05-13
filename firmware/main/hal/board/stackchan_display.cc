@@ -251,7 +251,11 @@ void StackChanAvatarDisplay::SetupUI()
 
     ESP_LOGI(TAG, "Creating Stack-chan Avatar...");
 
+#ifdef USE_PENGUIN_SKIN
+    auto avatar = std::make_unique<PenguinAvatar>();
+#else
     auto avatar = std::make_unique<DefaultAvatar>();
+#endif
     avatar->init(lv_screen_active());
     avatar->getPanel()->onClick().connect([]() {
         if (hal_bridge::is_xiaozhi_ready()) {

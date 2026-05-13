@@ -84,7 +84,11 @@ void AppAvatar::onOpen()
     loading_page.reset();
 
     // Create default avatar
+#ifdef USE_PENGUIN_SKIN
+    auto avatar = std::make_unique<avatar::PenguinAvatar>();
+#else
     auto avatar = std::make_unique<avatar::DefaultAvatar>();
+#endif
     avatar->init(lv_screen_active());
     avatar->getPanel()->onClick().connect([&]() { _screen_clicked_flag = true; });
     GetStackChan().attachAvatar(std::move(avatar));

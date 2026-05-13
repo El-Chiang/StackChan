@@ -12,6 +12,34 @@
 
 namespace stackchan::avatar {
 
+// Layout constants in the 320x240 LVGL panel, mirroring the Moddable
+// PenguinFace atlas (firmware/mods/penguin-face/penguin-atlas.js).
+//
+// face_region occupies a 240x240 area centered horizontally with 40px
+// black bars on either side. All sprite positions (cx,cy) are centers
+// relative to the face_region top-left.
+struct PenguinLayout {
+    static constexpr int PANEL_W   = 320;
+    static constexpr int PANEL_H   = 240;
+    static constexpr int FACE_LEFT = 40;
+    static constexpr int FACE_TOP  = 0;
+    static constexpr int FACE_W    = 240;
+    static constexpr int FACE_H    = 240;
+
+    static constexpr int LEFT_EYE_CX = 85;
+    static constexpr int LEFT_EYE_CY = 130;
+    static constexpr int EYE_W       = 50;
+    static constexpr int EYE_H       = 44;
+
+    static constexpr int RIGHT_EYE_CX = 146;
+    static constexpr int RIGHT_EYE_CY = 130;
+
+    static constexpr int MOUTH_CX = 120;
+    static constexpr int MOUTH_CY = 160;
+    static constexpr int MOUTH_W  = 56;
+    static constexpr int MOUTH_H  = 32;
+};
+
 class PenguinAvatar : public Avatar {
 public:
     void init(lv_obj_t* parent, const lv_font_t* font = &lv_font_montserrat_16);
@@ -19,6 +47,8 @@ public:
 
 private:
     std::unique_ptr<uitk::lvgl_cpp::Container> _panel;
+    std::unique_ptr<uitk::lvgl_cpp::Container> _face_region;
+    std::unique_ptr<uitk::lvgl_cpp::Image> _base;
 };
 
 class PenguinEyes : public Feature {
@@ -34,8 +64,11 @@ public:
     void setSize(int size) override;
 
 private:
+    void applyVariant();
+
     bool _is_left_eye = false;
-    std::unique_ptr<uitk::lvgl_cpp::Container> _container;
+    int _variant      = 0;  // 0=open, 1=closed
+    std::unique_ptr<uitk::lvgl_cpp::Image> _image;
 };
 
 class PenguinMouth : public Feature {
@@ -49,7 +82,10 @@ public:
     void setVisible(bool visible) override;
 
 private:
-    std::unique_ptr<uitk::lvgl_cpp::Container> _container;
+    void applyVariant();
+
+    int _variant = 0;  // 0=smile_small, 1=smile_wide
+    std::unique_ptr<uitk::lvgl_cpp::Image> _image;
 };
 
 class PenguinSpeechBubble : public SpeechBubble {
