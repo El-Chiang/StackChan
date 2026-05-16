@@ -245,6 +245,137 @@ index 3692e0c..7bfbc5c 100644
      
      // Strategy instance
      std::unique_ptr<AssetStrategy> strategy_;
+diff --git a/main/audio/audio_service.cc b/main/audio/audio_service.cc
+index 350ac58..5298474 100644
+--- a/main/audio/audio_service.cc
++++ b/main/audio/audio_service.cc
+@@ -120,6 +120,18 @@ void AudioService::Initialize(AudioCodec* codec) {
+         .skip_unhandled_events = true,
+     };
+     esp_timer_create(&audio_power_timer_args, &audio_power_timer_);
++
++    esp_timer_create_args_t speaker_active_timer_args = {
++        .callback = [](void* arg) {
++            AudioService* audio_service = (AudioService*)arg;
++            audio_service->CheckSpeakerActiveState();
++        },
++        .arg = this,
++        .dispatch_method = ESP_TIMER_TASK,
++        .name = "speaker_active",
++        .skip_unhandled_events = true,
++    };
++    esp_timer_create(&speaker_active_timer_args, &speaker_active_timer_);
+ }
+ 
+ void AudioService::Start() {
+@@ -127,6 +139,7 @@ void AudioService::Start() {
+     xEventGroupClearBits(event_group_, AS_EVENT_AUDIO_TESTING_RUNNING | AS_EVENT_WAKE_WORD_RUNNING | AS_EVENT_AUDIO_PROCESSOR_RUNNING);
+ 
+     esp_timer_start_periodic(audio_power_timer_, 1000000);
++    esp_timer_start_periodic(speaker_active_timer_, SPEAKER_ACTIVE_CHECK_INTERVAL_MS * 1000);
+ 
+ #if CONFIG_USE_AUDIO_PROCESSOR
+     /* Start the audio input task */
+@@ -168,6 +181,8 @@ void AudioService::Start() {
+ 
+ void AudioService::Stop() {
+     esp_timer_stop(audio_power_timer_);
++    esp_timer_stop(speaker_active_timer_);
++    SetSpeakerActive(false);
+     service_stopped_ = true;
+     xEventGroupSetBits(event_group_, AS_EVENT_AUDIO_TESTING_RUNNING |
+         AS_EVENT_WAKE_WORD_RUNNING |
+@@ -310,6 +325,7 @@ void AudioService::AudioOutputTask() {
+ 
+         /* Update the last output time */
+         last_output_time_ = std::chrono::steady_clock::now();
++        SetSpeakerActive(true);
+         debug_statistics_.playback_count++;
+ 
+ #if CONFIG_USE_SERVER_AEC
+@@ -679,6 +695,24 @@ void AudioService::ResetDecoder() {
+     audio_queue_cv_.notify_all();
+ }
+ 
++void AudioService::CheckSpeakerActiveState() {
++    if (!is_speaker_active_.load()) {
++        return;
++    }
++    auto now = std::chrono::steady_clock::now();
++    auto output_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_output_time_).count();
++    if (output_elapsed > SPEAKER_ACTIVE_TIMEOUT_MS) {
++        SetSpeakerActive(false);
++    }
++}
++
++void AudioService::SetSpeakerActive(bool active) {
++    bool prev = is_speaker_active_.exchange(active);
++    if (prev != active && on_speaker_active_change_) {
++        on_speaker_active_change_(active);
++    }
++}
++
+ void AudioService::CheckAndUpdateAudioPowerState() {
+     auto now = std::chrono::steady_clock::now();
+     auto input_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_input_time_).count();
+diff --git a/main/audio/audio_service.h b/main/audio/audio_service.h
+index 99db546..8f9af39 100644
+--- a/main/audio/audio_service.h
++++ b/main/audio/audio_service.h
+@@ -6,6 +6,8 @@
+ #include <condition_variable>
+ #include <chrono>
+ #include <mutex>
++#include <atomic>
++#include <functional>
+ 
+ #include <freertos/FreeRTOS.h>
+ #include <freertos/task.h>
+@@ -47,6 +49,10 @@
+ #define AUDIO_POWER_TIMEOUT_MS 15000
+ #define AUDIO_POWER_CHECK_INTERVAL_MS 1000
+ 
++// 距离最近一次 PCM 写入超过这个时长，认为扬声器已"停"（用于驱动嘴巴动画启停）
++#define SPEAKER_ACTIVE_TIMEOUT_MS 80
++#define SPEAKER_ACTIVE_CHECK_INTERVAL_MS 30
++
+ #define AS_EVENT_AUDIO_TESTING_RUNNING      (1 << 0)
+ #define AS_EVENT_WAKE_WORD_RUNNING          (1 << 1)
+ #define AS_EVENT_AUDIO_PROCESSOR_RUNNING    (1 << 2)
+@@ -134,6 +140,12 @@ public:
+     void ResetDecoder();
+     void SetModelsList(srmodel_list_t* models_list);
+ 
++    // 订阅"扬声器是否正在出声"的状态变化。仅在 false<->true 切换时触发。
++    void OnSpeakerActiveChange(std::function<void(bool active)> callback) {
++        on_speaker_active_change_ = std::move(callback);
++    }
++    bool IsSpeakerActive() const { return is_speaker_active_.load(); }
++
+ private:
+     AudioCodec* codec_ = nullptr;
+     AudioServiceCallbacks callbacks_;
+@@ -184,12 +196,19 @@ private:
+     std::chrono::steady_clock::time_point last_input_time_;
+     std::chrono::steady_clock::time_point last_output_time_;
+ 
++    // 扬声器活跃状态（独立于 codec 电源管理）
++    esp_timer_handle_t speaker_active_timer_ = nullptr;
++    std::atomic<bool> is_speaker_active_{false};
++    std::function<void(bool)> on_speaker_active_change_;
++
+     void AudioInputTask();
+     void AudioOutputTask();
+     void OpusCodecTask();
+     void PushTaskToEncodeQueue(AudioTaskType type, std::vector<int16_t>&& pcm);
+     void SetDecodeSampleRate(int sample_rate, int frame_duration);
+     void CheckAndUpdateAudioPowerState();
++    void CheckSpeakerActiveState();
++    void SetSpeakerActive(bool active);
+ };
+ 
+ #endif
+\ No newline at end of file
 diff --git a/main/boards/common/i2c_device.cc b/main/boards/common/i2c_device.cc
 index 835997d..ea50d51 100644
 --- a/main/boards/common/i2c_device.cc

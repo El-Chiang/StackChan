@@ -17,6 +17,7 @@
 #include <stackchan/stackchan.h>
 #include <assets/lang_config.h>
 #include <hal/hal.h>
+#include "application.h"
 
 using namespace stackchan;
 using namespace stackchan::avatar;
@@ -279,6 +280,10 @@ void StackChanAvatarDisplay::SetupUI()
     auto config        = hal_bridge::get_xiaozhi_config();
     idle_motion_level_ = config.idleRandomMovementLevel;
 
+    // 嘴巴动画跟扬声器实际出声同步，而不是跟服务端状态字符串
+    Application::GetInstance().GetAudioService().OnSpeakerActiveChange(
+        [this](bool active) { OnSpeakerActiveChanged(active); });
+
     ESP_LOGI(TAG, "Avatar created and started");
 }
 
@@ -493,25 +498,11 @@ void StackChanAvatarDisplay::SetStatus(const char* status)
     bool is_listening = false;
 
     if (strcmp(status, Lang::Strings::LISTENING) == 0) {
-        if (speaking_modifier_id_ >= 0) {
-            // Start speaking
-            stackchan.removeModifier(speaking_modifier_id_);
-            avatar.mouth().setWeight(0);
-            speaking_modifier_id_ = -1;
-        }
-
         GetHAL().setRgbColor(0, 0, 50, 0);
         GetHAL().refreshRgb();
 
     } else if (strcmp(status, Lang::Strings::STANDBY) == 0) {
         _is_xiaozhi_ready = true;
-
-        if (speaking_modifier_id_ >= 0) {
-            // Stop speaking
-            stackchan.removeModifier(speaking_modifier_id_);
-            avatar.mouth().setWeight(0);
-            speaking_modifier_id_ = -1;
-        }
 
         is_idle = true;
 
@@ -519,15 +510,12 @@ void StackChanAvatarDisplay::SetStatus(const char* status)
         GetHAL().refreshRgb();
 
     } else if (strcmp(status, Lang::Strings::SPEAKING) == 0) {
-        if (speaking_modifier_id_ < 0) {
-            speaking_modifier_id_ = stackchan.addModifier(std::make_unique<SpeakingModifier>(0, 180, false));
-        }
-
         GetHAL().setRgbColor(0, 0, 0, 50);
         GetHAL().refreshRgb();
     } else {
         avatar.setSpeech(status);
     }
+    // 嘴巴动画交给 OnSpeakerActiveChanged 根据真实音频输出驱动，不在这里启停
 
     if (is_idle) {
         // Start idle motion
@@ -567,4 +555,27 @@ void StackChanAvatarDisplay::SetStatus(const char* status)
 
 void StackChanAvatarDisplay::ShowNotification(const char* notification, int duration_ms)
 {
+}
+
+void StackChanAvatarDisplay::OnSpeakerActiveChanged(bool active)
+{
+    auto& stackchan = GetStackChan();
+    if (!stackchan.hasAvatar()) {
+        return;
+    }
+
+    LvglLockGuard lock;
+
+    if (active) {
+        if (speaking_modifier_id_ < 0) {
+            speaking_modifier_id_ =
+                stackchan.addModifier(std::make_unique<SpeakingModifier>(0, 180, false));
+        }
+    } else {
+        if (speaking_modifier_id_ >= 0) {
+            stackchan.removeModifier(speaking_modifier_id_);
+            speaking_modifier_id_ = -1;
+        }
+        stackchan.avatar().mouth().setWeight(0);
+    }
 }
