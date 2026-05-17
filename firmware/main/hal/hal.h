@@ -20,7 +20,7 @@
  * @brief
  *
  */
-enum class HeadPetGesture { None, Press, Release, SwipeForward, SwipeBackward };
+enum class HeadPetGesture { None, Press, Release, SwipeForward, SwipeBackward, DoubleTap };
 
 /**
  * @brief
