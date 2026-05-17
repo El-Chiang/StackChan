@@ -120,7 +120,7 @@ void start_xiaozhi_app()
     // 拍头顶两下唤醒（与语音唤醒走同一入口）
     GetHAL().onHeadPetGesture.connect([](HeadPetGesture gesture) {
         if (gesture != HeadPetGesture::DoubleTap) return;
-        Application::GetInstance().WakeWordInvoke("咕咕嘎嘎");
+        Application::GetInstance().WakeWordInvoke(CONFIG_CUSTOM_WAKE_WORD_DISPLAY);
     });
 
     app.Run();  // This function runs the main event loop and never returns

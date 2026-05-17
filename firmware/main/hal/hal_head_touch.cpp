@@ -9,6 +9,7 @@
 #include <mooncake_log.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <cstdlib>
 
 static const std::string_view _tag = "HAL-HeadTouch";
 
@@ -150,9 +151,8 @@ static void _head_touch_update_task(void* param)
             if (gesture == HeadPetGesture::Press) {
                 uint32_t now        = xTaskGetTickCount();
                 int16_t  pos        = data.get_position();
-                uint32_t elapsed_ms = (now - last_press_tick) * portTICK_PERIOD_MS;
-                int16_t  pos_delta  = pos - last_press_position;
-                if (pos_delta < 0) pos_delta = -pos_delta;
+                uint32_t elapsed_ms = pdTICKS_TO_MS(now - last_press_tick);
+                int16_t  pos_delta  = std::abs(pos - last_press_position);
 
                 if (last_press_tick != 0
                     && elapsed_ms >= kDoubleTapMinGapMs
