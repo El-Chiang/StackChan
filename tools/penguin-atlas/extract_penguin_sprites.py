@@ -89,10 +89,11 @@ def write_lvgl_c(out_path: Path, name: str, img: Image.Image) -> None:
         "",
     ]
     chunk = 16
+    row_stride = w * 4
     for row in range(h):
-        for col_start in range(0, w * 4, chunk * 4):
-            off = (row * w * 4) + col_start
-            byts = bgra[off:off + chunk * 4]
+        row_bytes = bgra[row * row_stride : (row + 1) * row_stride]
+        for col_start in range(0, row_stride, chunk * 4):
+            byts = row_bytes[col_start:col_start + chunk * 4]
             lines.append("    " + ",".join(f"0x{b:02x}" for b in byts) + ",")
     lines += [
         "};",
