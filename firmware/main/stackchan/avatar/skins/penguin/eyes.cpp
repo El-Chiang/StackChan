@@ -21,11 +21,16 @@ PenguinEyes::PenguinEyes(lv_obj_t* parent, bool isLeftEye)
     lv_image_set_inner_align(_image->get(), LV_IMAGE_ALIGN_TOP_LEFT);
 
     int cx = _is_left_eye ? PenguinLayout::LEFT_EYE_CX : PenguinLayout::RIGHT_EYE_CX;
-    int cy = PenguinLayout::LEFT_EYE_CY;
-    _image->setPos(cx - PenguinLayout::EYE_W / 2, cy - PenguinLayout::EYE_H / 2);
-    _image->setSize(PenguinLayout::EYE_W, PenguinLayout::EYE_H);
+    int w  = _is_left_eye ? PenguinLayout::LEFT_EYE_W  : PenguinLayout::RIGHT_EYE_W;
+    int cy = PenguinLayout::EYE_CY;
+    _image->setPos(cx - w / 2, cy - PenguinLayout::EYE_H / 2);
+    _image->setSize(w, PenguinLayout::EYE_H);
 
     applyVariant();
+    // Seed _weight so BlinkModifier's first cycle captures 100 (open) as the
+    // rest weight to restore on each blink. Without this it captures the
+    // default 0 and the eyes stay closed forever after the first blink.
+    setWeight(100);
 }
 
 PenguinEyes::~PenguinEyes()
@@ -36,9 +41,8 @@ PenguinEyes::~PenguinEyes()
 void PenguinEyes::applyVariant()
 {
     if (!_image) return;
-    // offset_x is the image's position offset within the widget; negative
-    // pulls the image left so the next variant cell scrolls into view.
-    lv_image_set_offset_x(_image->get(), -PenguinLayout::EYE_W * _variant);
+    int w = _is_left_eye ? PenguinLayout::LEFT_EYE_W : PenguinLayout::RIGHT_EYE_W;
+    lv_image_set_offset_x(_image->get(), -w * _variant);
 }
 
 void PenguinEyes::setPosition(const Vector2i& position)
@@ -52,8 +56,9 @@ void PenguinEyes::setPosition(const Vector2i& position)
 void PenguinEyes::setWeight(int weight)
 {
     Feature::setWeight(weight);
-    // weight 0 = fully closed eyelids, weight 100 = fully open. The atlas
-    // only ships two variants so anything below 50 looks closed.
+    // While an emotion is active the variant is owned by setEmotion — blink
+    // animations only drive the atlas when emotion is Neutral / not set.
+    if (_emotion_locked) return;
     int next = (weight >= 50) ? 0 : 1;
     if (next != _variant) {
         _variant = next;
@@ -69,18 +74,23 @@ void PenguinEyes::setRotation(int rotation)
 void PenguinEyes::setEmotion(const Emotion& emotion)
 {
     if (getIgnoreEmotion()) return;
-    // Approximate emotions with the two-variant atlas until dedicated
-    // sprites are added.
+    // Variant indexes match the eye atlas built by tools/penguin-atlas:
+    // 0=open  1=closed  2=happy  3=angry  4=sad  5=doubt  6=surprise
+    int next = 0;
     switch (emotion) {
-        case Emotion::Sleepy:
-            setWeight(20);  // closed
-            break;
-        case Emotion::Happy:
-            setWeight(40);  // half-closed (squint)
-            break;
-        default:
-            setWeight(100);  // open
-            break;
+        case Emotion::Neutral: next = 0; break;
+        case Emotion::Sleepy:  next = 1; break;
+        case Emotion::Happy:   next = 2; break;
+        case Emotion::Angry:   next = 3; break;
+        case Emotion::Sad:     next = 4; break;
+        case Emotion::Doubt:   next = 5; break;
+        default:               next = 0; break;
+    }
+    // Neutral releases the lock so blink animations can drive the eye again.
+    _emotion_locked = (emotion != Emotion::Neutral);
+    if (next != _variant) {
+        _variant = next;
+        applyVariant();
     }
 }
 

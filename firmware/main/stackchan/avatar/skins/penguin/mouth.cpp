@@ -42,8 +42,29 @@ void PenguinMouth::setPosition(const Vector2i& position)
 void PenguinMouth::setWeight(int weight)
 {
     Feature::setWeight(weight);
-    // weight 0 = closed (smile_small), 100 = wide open (smile_wide).
-    int next = (weight >= 50) ? 1 : 0;
+    // Speech amplitude toggles between the emotion's (closed, open) pair.
+    int next = (weight >= 50) ? _open_variant : _closed_variant;
+    if (next != _variant) {
+        _variant = next;
+        applyVariant();
+    }
+}
+
+void PenguinMouth::setEmotion(const Emotion& emotion)
+{
+    if (getIgnoreEmotion()) return;
+    // Mouth atlas: 0=neutral 1=happy 2=joy 3=angry 4=sad 5=doubt 6=surprise 7=excited
+    // Each emotion picks a (closed, open) pair so setWeight can sync with speech.
+    switch (emotion) {
+        case Emotion::Neutral: _closed_variant = 0; _open_variant = 1; break;  // neutral / happy
+        case Emotion::Happy:   _closed_variant = 0; _open_variant = 1; break;  // neutral / happy
+        case Emotion::Angry:   _closed_variant = 5; _open_variant = 6; break;  // doubt / surprise
+        case Emotion::Sad:     _closed_variant = 4; _open_variant = 6; break;  // sad / surprise
+        case Emotion::Doubt:   _closed_variant = 5; _open_variant = 6; break;  // doubt / surprise
+        case Emotion::Sleepy:  _closed_variant = 0; _open_variant = 0; break;  // neutral only
+        default:               _closed_variant = 0; _open_variant = 1; break;
+    }
+    int next = (getWeight() >= 50) ? _open_variant : _closed_variant;
     if (next != _variant) {
         _variant = next;
         applyVariant();

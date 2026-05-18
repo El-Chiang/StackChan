@@ -26,13 +26,12 @@ struct PenguinLayout {
     static constexpr int FACE_W    = 240;
     static constexpr int FACE_H    = 240;
 
-    static constexpr int LEFT_EYE_CX = 85;
-    static constexpr int LEFT_EYE_CY = 130;
-    static constexpr int EYE_W       = 50;
-    static constexpr int EYE_H       = 44;
-
-    static constexpr int RIGHT_EYE_CX = 146;
-    static constexpr int RIGHT_EYE_CY = 130;
+    static constexpr int EYE_CY       = 126;
+    static constexpr int EYE_H        = 36;
+    static constexpr int LEFT_EYE_CX  = 85;
+    static constexpr int LEFT_EYE_W   = 50;
+    static constexpr int RIGHT_EYE_CX = 144;
+    static constexpr int RIGHT_EYE_W  = 53;
 
     static constexpr int MOUTH_CX = 120;
     static constexpr int MOUTH_CY = 160;
@@ -66,8 +65,9 @@ public:
 private:
     void applyVariant();
 
-    bool _is_left_eye = false;
-    int _variant      = 0;  // 0=open, 1=closed
+    bool _is_left_eye    = false;
+    int _variant         = 0;  // index into the eye sprite atlas (see eyes.cpp setEmotion)
+    bool _emotion_locked = false;
     std::unique_ptr<uitk::lvgl_cpp::Image> _image;
 };
 
@@ -79,12 +79,18 @@ public:
     void setPosition(const uitk::Vector2i& position) override;
     void setWeight(int weight) override;
     void setRotation(int rotation) override;
+    void setEmotion(const Emotion& emotion) override;
     void setVisible(bool visible) override;
 
 private:
     void applyVariant();
 
-    int _variant = 0;  // 0=smile_small, 1=smile_wide
+    int _variant         = 0;  // index into the mouth sprite atlas (see mouth.cpp setEmotion)
+    // setEmotion sets a (closed, open) pair from the atlas; setWeight toggles
+    // between them based on speech amplitude so the mouth opens/closes in sync
+    // even while an emotion is active.
+    int _closed_variant  = 0;
+    int _open_variant    = 1;
     std::unique_ptr<uitk::lvgl_cpp::Image> _image;
 };
 
