@@ -228,7 +228,8 @@ void AppAvatar::onOpen()
 
     /* ----------------------------- Common widgets ----------------------------- */
     view::create_home_indicator([&]() { close(); }, 0xFF9ABC, 0x431525);
-    view::create_status_bar(0xFF9ABC, 0x431525);
+    // 主头像界面：状态栏常驻、透明背景、白色图标（黑底黑填充使电池空槽在黑背景上隐形）
+    view::create_status_bar(0x000000, 0xFFFFFF, lv_screen_active(), /*persistent=*/true, /*transparentBg=*/true);
 }
 
 void AppAvatar::onRunning()
