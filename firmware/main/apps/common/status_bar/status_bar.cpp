@@ -278,7 +278,8 @@ private:
 
 class StatusBarView {
 public:
-    StatusBarView(lv_obj_t* parent, uint32_t colorSecondary, uint32_t colorPrimary)
+    StatusBarView(lv_obj_t* parent, uint32_t colorSecondary, uint32_t colorPrimary, bool persistent = false,
+                  bool transparentBg = false)
     {
         _panel = std::make_unique<uitk::lvgl_cpp::Container>(lv_screen_active());
         _panel->setBgColor(lv_color_hex(colorSecondary));
@@ -288,7 +289,13 @@ public:
         _panel->setSize(320, 28);
         _panel->setRadius(0);
         _panel->setPadding(0, 0, 0, 0);
-        _panel->onClick().connect([this]() { hide(); });
+        if (transparentBg) {
+            lv_obj_set_style_bg_opa(_panel->get(), LV_OPA_TRANSP, 0);
+        }
+        // 常驻模式下不绑定点击隐藏，避免点顶部把常驻栏点没了
+        if (!persistent) {
+            _panel->onClick().connect([this]() { hide(); });
+        }
 
         _widgets.push_back(std::make_unique<TimeLabel>(_panel->get(), colorPrimary));
         _widgets.push_back(std::make_unique<Battery>(_panel->get(), colorSecondary, colorPrimary));
@@ -361,13 +368,17 @@ private:
  */
 class StatusBar {
 public:
-    void init(lv_obj_t* parent, uint32_t colorSecondary, uint32_t colorPrimary)
+    void init(lv_obj_t* parent, uint32_t colorSecondary, uint32_t colorPrimary, bool persistent = false,
+              bool transparentBg = false)
     {
+        _persistent = persistent;
+
         _status_bar_gesture            = std::make_unique<StatuBarGesture>();
         _status_bar_gesture->onGesture = [&]() { handle_gesture(); };
         _status_bar_gesture->init();
 
-        _status_bar_view = std::make_unique<status_bar_view::StatusBarView>(parent, colorSecondary, colorPrimary);
+        _status_bar_view = std::make_unique<status_bar_view::StatusBarView>(parent, colorSecondary, colorPrimary,
+                                                                            persistent, transparentBg);
         _status_bar_view->show();
         _status_bar_show_tick = GetHAL().millis();
         _is_first_show        = true;
@@ -385,6 +396,7 @@ private:
     std::unique_ptr<status_bar_view::StatusBarView> _status_bar_view;
     uint32_t _status_bar_show_tick = 0;
     bool _is_first_show            = true;
+    bool _persistent               = false;
 
     void handle_gesture()
     {
@@ -394,6 +406,9 @@ private:
 
     void update_visibility()
     {
+        if (_persistent) {
+            return;  // 常驻模式：永不自动隐藏
+        }
         if (!_status_bar_view->isHidden()) {
             if (GetHAL().millis() - _status_bar_show_tick > (_is_first_show ? 1800 : 6000)) {
                 _is_first_show = false;
@@ -411,10 +426,11 @@ namespace view {
 
 static std::unique_ptr<StatusBar> _status_bar;
 
-void create_status_bar(uint32_t colorSecondary, uint32_t colorPrimary, lv_obj_t* parent)
+void create_status_bar(uint32_t colorSecondary, uint32_t colorPrimary, lv_obj_t* parent, bool persistent,
+                       bool transparentBg)
 {
     _status_bar = std::make_unique<StatusBar>();
-    _status_bar->init(parent, colorSecondary, colorPrimary);
+    _status_bar->init(parent, colorSecondary, colorPrimary, persistent, transparentBg);
 }
 
 void update_status_bar()
