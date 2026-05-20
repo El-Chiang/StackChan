@@ -199,8 +199,8 @@ static int stackchan_svc_access(uint16_t conn_handle, uint16_t attr_handle, stru
                 rc = gatt_svr_write(ctxt->om, 0, STACKCHAN_MAX_JSON_LEN, stackchan_motion_data, &stackchan_motion_len);
                 if (rc == 0) {
                     stackchan_motion_data[stackchan_motion_len] = '\0';
-                    // MODLOG_DFLT(INFO, "Motion data received (%d bytes): %s", stackchan_motion_len,
-                    //             stackchan_motion_data);
+                    MODLOG_DFLT(INFO, "Motion data received (%d bytes): %s", stackchan_motion_len,
+                                stackchan_motion_data);
 
                     /* Call user callback if registered */
                     if (g_stackchan_callbacks.motion_cb) {
@@ -212,8 +212,8 @@ static int stackchan_svc_access(uint16_t conn_handle, uint16_t attr_handle, stru
                 rc = gatt_svr_write(ctxt->om, 0, STACKCHAN_MAX_JSON_LEN, stackchan_avatar_data, &stackchan_avatar_len);
                 if (rc == 0) {
                     stackchan_avatar_data[stackchan_avatar_len] = '\0';
-                    // MODLOG_DFLT(INFO, "Avatar data received (%d bytes): %s", stackchan_avatar_len,
-                    //             stackchan_avatar_data);
+                    MODLOG_DFLT(INFO, "Avatar data received (%d bytes): %s", stackchan_avatar_len,
+                                stackchan_avatar_data);
 
                     /* Call user callback if registered */
                     if (g_stackchan_callbacks.avatar_cb) {
@@ -238,7 +238,7 @@ static int stackchan_svc_access(uint16_t conn_handle, uint16_t attr_handle, stru
                 rc = gatt_svr_write(ctxt->om, 0, STACKCHAN_MAX_JSON_LEN, stackchan_rgb_data, &stackchan_rgb_len);
                 if (rc == 0) {
                     stackchan_rgb_data[stackchan_rgb_len] = '\0';
-                    // MODLOG_DFLT(INFO, "RGB data received (%d bytes): %s", stackchan_rgb_len, stackchan_rgb_data);
+                    MODLOG_DFLT(INFO, "RGB data received (%d bytes): %s", stackchan_rgb_len, stackchan_rgb_data);
 
                     /* Call user callback if registered */
                     if (g_stackchan_callbacks.rgb_cb) {
@@ -300,19 +300,19 @@ void gatt_svr_register_cb(struct ble_gatt_register_ctxt *ctxt, void *arg)
 
     switch (ctxt->op) {
         case BLE_GATT_REGISTER_OP_SVC:
-            MODLOG_DFLT(DEBUG, "registered service %s with handle=%d", ble_uuid_to_str(ctxt->svc.svc_def->uuid, buf),
+            MODLOG_DFLT(INFO, "registered service %s with handle=%d", ble_uuid_to_str(ctxt->svc.svc_def->uuid, buf),
                         ctxt->svc.handle);
             break;
 
         case BLE_GATT_REGISTER_OP_CHR:
-            MODLOG_DFLT(DEBUG,
+            MODLOG_DFLT(INFO,
                         "registering characteristic %s with "
                         "def_handle=%d val_handle=%d",
                         ble_uuid_to_str(ctxt->chr.chr_def->uuid, buf), ctxt->chr.def_handle, ctxt->chr.val_handle);
             break;
 
         case BLE_GATT_REGISTER_OP_DSC:
-            MODLOG_DFLT(DEBUG, "registering descriptor %s with handle=%d",
+            MODLOG_DFLT(INFO, "registering descriptor %s with handle=%d",
                         ble_uuid_to_str(ctxt->dsc.dsc_def->uuid, buf), ctxt->dsc.handle);
             break;
 

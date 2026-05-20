@@ -9,6 +9,7 @@
 #include <mooncake_log.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <cstdlib>
 
 static const std::string_view _tag = "HAL-HeadTouch";
 
@@ -115,6 +116,11 @@ private:
     int16_t initial_position;
 };
 
+// 双击窗口：第二次 Press 距上次 Press 落在 [80, 600] ms 内、且头顶按压位置接近
+static constexpr uint32_t kDoubleTapMinGapMs       = 80;
+static constexpr uint32_t kDoubleTapMaxGapMs       = 600;
+static constexpr int16_t  kDoubleTapPositionTol    = 30;
+
 static void _head_touch_update_task(void* param)
 {
     mclog::tagInfo(_tag, "start update task");
@@ -125,6 +131,9 @@ static void _head_touch_update_task(void* param)
 
     GestureRecognizer recognizer;
     HeadPetGesture gesture;
+
+    uint32_t last_press_tick     = 0;
+    int16_t  last_press_position = 0;
 
     vTaskDelay(pdMS_TO_TICKS(200));
 
@@ -138,6 +147,28 @@ static void _head_touch_update_task(void* param)
         gesture = recognizer.update(data);
         if (gesture != HeadPetGesture::None) {
             GetHAL().onHeadPetGesture.emit(gesture);
+
+            if (gesture == HeadPetGesture::Press) {
+                uint32_t now        = xTaskGetTickCount();
+                int16_t  pos        = data.get_position();
+                uint32_t elapsed_ms = pdTICKS_TO_MS(now - last_press_tick);
+                int16_t  pos_delta  = std::abs(pos - last_press_position);
+
+                if (last_press_tick != 0
+                    && elapsed_ms >= kDoubleTapMinGapMs
+                    && elapsed_ms <= kDoubleTapMaxGapMs
+                    && pos_delta  <= kDoubleTapPositionTol) {
+                    mclog::tagInfo(_tag, "DoubleTap detected (gap={}ms, dpos={})", elapsed_ms, pos_delta);
+                    GetHAL().onHeadPetGesture.emit(HeadPetGesture::DoubleTap);
+                    last_press_tick = 0;  // 重置，避免连续三次按压被识别为两次双击
+                } else {
+                    last_press_tick     = now;
+                    last_press_position = pos;
+                }
+            } else if (gesture == HeadPetGesture::SwipeForward
+                    || gesture == HeadPetGesture::SwipeBackward) {
+                last_press_tick = 0;  // 滑动手势打断双击序列
+            }
         }
 
         vTaskDelay(pdMS_TO_TICKS(50));

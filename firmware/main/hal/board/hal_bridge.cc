@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: MIT
  */
 #include "hal_bridge.h"
+#include "hal/hal.h"
 #include "stackchan_display.h"
 #include <esp_log.h>
 #include <esp_err.h>
@@ -115,6 +116,13 @@ void start_xiaozhi_app()
     // Initialize and run the application
     auto& app = Application::GetInstance();
     app.Initialize();
+
+    // 拍头顶两下唤醒（与语音唤醒走同一入口）
+    GetHAL().onHeadPetGesture.connect([](HeadPetGesture gesture) {
+        if (gesture != HeadPetGesture::DoubleTap) return;
+        Application::GetInstance().WakeWordInvoke(CONFIG_CUSTOM_WAKE_WORD_DISPLAY);
+    });
+
     app.Run();  // This function runs the main event loop and never returns
 }
 

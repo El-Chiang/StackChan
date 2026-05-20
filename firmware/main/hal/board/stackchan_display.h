@@ -26,6 +26,7 @@ private:
     std::unique_ptr<LvglImage> preview_image_cached_ = nullptr;
 
     void CreateIdleMotionModifier();
+    void OnSpeakerActiveChanged(bool active);
 
 protected:
     virtual bool Lock(int timeout_ms = 0) override;

@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>Penguin Frame Alignment Preview</title>
+<style>
+  :root {
+    --bg: #0d0d10; --fg: #e8e8ea; --muted: #8a8a92;
+    --accent: #ffcb47; --panel: #18181c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px;
+    background: var(--bg); color: var(--fg);
+    font: 14px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  }
+  h1 { font-size: 16px; margin: 0 0 16px; font-weight: 600; }
+  .controls {
+    display: flex; flex-wrap: wrap; gap: 16px;
+    align-items: center; margin-bottom: 20px;
+    padding: 12px 16px; background: var(--panel); border-radius: 8px;
+  }
+  .controls label { color: var(--muted); margin-right: 6px; }
+  .controls button {
+    background: #2a2a30; color: var(--fg); border: 1px solid #3a3a42;
+    padding: 6px 12px; border-radius: 6px; cursor: pointer; font: inherit;
+  }
+  .controls button:hover { background: #34343c; }
+  .controls button.active { background: var(--accent); color: #1a1a1a; border-color: var(--accent); }
+  .controls input[type=range] { vertical-align: middle; width: 160px; }
+  .stage { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .pane {
+    background: var(--panel); border-radius: 8px; padding: 16px;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .pane h2 { font-size: 13px; font-weight: 500; color: var(--muted); margin: 0 0 12px; letter-spacing: 0.5px; }
+  .canvas-wrap {
+    position: relative; background: #000;
+    width: var(--render-size, 480px); height: var(--render-size, 480px);
+    image-rendering: pixelated; overflow: hidden;
+  }
+  .canvas-wrap img {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    image-rendering: pixelated;
+  }
+  .meta { margin-top: 10px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; min-height: 18px; }
+  .status { color: var(--accent); margin-left: 8px; }
+  .missing { color: #ff6464; }
+</style>
+</head>
+<body>
+
+<h1>Penguin frame alignment — preview</h1>
+
+<div class="controls">
+  <div>
+    <button id="play">▶︎ Play</button>
+    <button id="prev">◀</button>
+    <button id="next">▶</button>
+    <span class="status">frame <span id="frame-num">1</span> / <span id="frame-total">?</span></span>
+  </div>
+  <div>
+    <label>interval</label>
+    <input type="range" id="interval" min="80" max="2000" step="20" value="2000">
+    <span id="interval-val">2000</span> ms
+  </div>
+  <div>
+    <label>zoom</label>
+    <button data-zoom="240">1×</button>
+    <button data-zoom="480" class="active">2×</button>
+    <button data-zoom="720">3×</button>
+  </div>
+  <div>
+    <button id="onion">Onion-skin overlay</button>
+  </div>
+</div>
+
+<div class="stage">
+  <div class="pane">
+    <h2>ORIGINAL (resized, unaligned)</h2>
+    <div class="canvas-wrap" id="canvas-orig"></div>
+    <div class="meta" id="meta-orig"></div>
+  </div>
+  <div class="pane">
+    <h2>ALIGNED</h2>
+    <div class="canvas-wrap" id="canvas-aligned"></div>
+    <div class="meta" id="meta-aligned"></div>
+  </div>
+</div>
+
+<script src="./out/aligned/alignment-report.js"
+        onerror="document.body.insertAdjacentHTML('afterbegin', '<p class=missing>缺少 out/aligned/alignment-report.js — 先跑 align_penguin_frames.py</p>')"></script>
+<script>
+const report = window.PENGUIN_ALIGNMENT;
+const N = report ? report.names.length : 0;
+const NAMES = report ? report.names : [];
+const ORIG_BASE = "./out/original/";
+const ALIGNED_BASE = "./out/aligned/";
+
+document.getElementById("frame-total").textContent = N;
+
+function makeImg(src) {
+  const img = new Image();
+  img.src = src;
+  return img;
+}
+const origImgs    = NAMES.map(n => makeImg(ORIG_BASE + n));
+const alignedImgs = NAMES.map(n => makeImg(ALIGNED_BASE + n));
+
+const canvasOrig = document.getElementById("canvas-orig");
+const canvasAligned = document.getElementById("canvas-aligned");
+const metaOrig = document.getElementById("meta-orig");
+const metaAligned = document.getElementById("meta-aligned");
+const frameNumEl = document.getElementById("frame-num");
+const intervalInput = document.getElementById("interval");
+const intervalVal = document.getElementById("interval-val");
+const playBtn = document.getElementById("play");
+const onionBtn = document.getElementById("onion");
+
+let current = 0, playing = true, onion = false, timer = null;
+
+function renderSingle(wrap, imgs, idx) {
+  wrap.innerHTML = "";
+  if (imgs[idx]) wrap.appendChild(imgs[idx].cloneNode());
+}
+function renderOnion(wrap, imgs) {
+  wrap.innerHTML = "";
+  const alpha = 1 / Math.max(N, 1);
+  for (const img of imgs) {
+    const node = img.cloneNode();
+    node.style.opacity = String(alpha);
+    node.style.mixBlendMode = "screen";
+    wrap.appendChild(node);
+  }
+}
+function render() {
+  if (!N) return;
+  if (onion) {
+    renderOnion(canvasOrig, origImgs);
+    renderOnion(canvasAligned, alignedImgs);
+    metaOrig.textContent = `all ${N} frames stacked (1/${N} alpha, screen)`;
+    metaAligned.textContent = `all ${N} frames stacked (1/${N} alpha, screen)`;
+  } else {
+    renderSingle(canvasOrig, origImgs, current);
+    renderSingle(canvasAligned, alignedImgs, current);
+    frameNumEl.textContent = String(current + 1);
+    const name = NAMES[current];
+    const f = report?.frames[name];
+    if (f) {
+      metaOrig.textContent = `${name}  bbox center = (${f.orig[0]}, ${f.orig[1]})`;
+      metaAligned.textContent = `${name}  shift = (dy ${f.dy >= 0 ? "+" : ""}${f.dy}, dx ${f.dx >= 0 ? "+" : ""}${f.dx})`;
+    } else {
+      metaOrig.textContent = name; metaAligned.textContent = name;
+    }
+  }
+}
+
+function tick() { current = (current + 1) % N; render(); }
+function startTimer() { stopTimer(); if (playing && !onion && N) timer = setInterval(tick, parseInt(intervalInput.value, 10)); }
+function stopTimer()  { if (timer) { clearInterval(timer); timer = null; } }
+
+playBtn.addEventListener("click", () => {
+  playing = !playing;
+  playBtn.textContent = playing ? "▶︎ Play" : "❚❚ Pause";
+  playBtn.classList.toggle("active", !playing);
+  startTimer();
+});
+document.getElementById("prev").addEventListener("click", () => {
+  playing = false; playBtn.textContent = "▶︎ Play"; playBtn.classList.remove("active");
+  stopTimer(); current = (current - 1 + N) % N; render();
+});
+document.getElementById("next").addEventListener("click", () => {
+  playing = false; playBtn.textContent = "▶︎ Play"; playBtn.classList.remove("active");
+  stopTimer(); current = (current + 1) % N; render();
+});
+intervalInput.addEventListener("input", () => {
+  intervalVal.textContent = intervalInput.value; startTimer();
+});
+onionBtn.addEventListener("click", () => {
+  onion = !onion;
+  onionBtn.classList.toggle("active", onion);
+  if (onion) stopTimer(); else startTimer();
+  render();
+});
+document.querySelectorAll("button[data-zoom]").forEach((b) => {
+  b.addEventListener("click", () => {
+    document.querySelectorAll("button[data-zoom]").forEach((x) => x.classList.remove("active"));
+    b.classList.add("active");
+    document.documentElement.style.setProperty("--render-size", `${b.dataset.zoom}px`);
+  });
+});
+
+document.documentElement.style.setProperty("--render-size", "480px");
+render(); startTimer();
+</script>
+
+</body>
+</html>

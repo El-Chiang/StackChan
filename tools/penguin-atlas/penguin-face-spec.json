@@ -1,0 +1,53 @@
+{
+  "canvas": { "width": 240, "height": 240 },
+  "base_frame": "idle.png",
+  "comment": "Bounding boxes (x1,y1,x2,y2) and centers (cx,cy) within the 240x240 aligned PNGs. bbox values match stack-chan/scripts/penguin-face-spec.json — PenguinLayout in firmware/main/stackchan/avatar/skins/penguin/penguin.h is derived from this.",
+
+  "parts": {
+    "left_eye":  { "cx":  85, "cy": 126, "w": 50, "h": 36, "bbox": [60, 108, 110, 144] },
+    "right_eye": { "cx": 144, "cy": 126, "w": 53, "h": 36, "bbox": [118, 108, 171, 144] },
+    "mouth":     { "cx": 120, "cy": 160, "w": 56, "h": 32, "bbox": [92, 144, 148, 176] }
+  },
+
+  "sprites": {
+    "comment": "Each list is [variant_label, source_frame] or [variant_label, source_frame, [dx, dy]] to per-variant translate the bbox. dx/dy in source-pixel units (positive dx = crop region shifts right in source, which moves the rendered eye LEFT on the composite by dx px).",
+    "left_eye":  [
+      ["open",    "idle.png"],
+      ["closed",  "close_eyes.png"],
+      ["happy",   "happy.png"],
+      ["angry",   "angry.png"],
+      ["sad",     "sad.png",     [1, 0]],
+      ["doubt",   "boring.png"],
+      ["surprise","surprise.png", [2, 1]]
+    ],
+    "right_eye": [
+      ["open",    "idle.png"],
+      ["closed",  "close_eyes.png"],
+      ["happy",   "happy.png"],
+      ["angry",   "angry.png",   [-1, 0]],
+      ["sad",     "sad.png",     [-1, 0]],
+      ["doubt",   "boring.png"],
+      ["surprise","surprise.png", [-1, 1]]
+    ],
+    "mouth": [
+      ["neutral", "idle.png"],
+      ["happy",   "happy.png"],
+      ["joy",     "joy.png"],
+      ["angry",   "angry.png"],
+      ["sad",     "sad.png"],
+      ["doubt",   "boring.png"],
+      ["surprise","surprise.png"],
+      ["excited", "excited.png"]
+    ]
+  },
+
+  "emotions": {
+    "comment": "Maps the 6 Emotion enum values to a (eye_variant, mouth_variant) tuple via variant LABEL (not index). extract_penguin_sprites.py resolves label → index by looking up in sprites lists above.",
+    "Neutral": { "eye": "open",    "mouth": "neutral"  },
+    "Happy":   { "eye": "happy",   "mouth": "happy"    },
+    "Angry":   { "eye": "angry",   "mouth": "angry"    },
+    "Sad":     { "eye": "sad",     "mouth": "sad"      },
+    "Doubt":   { "eye": "doubt",   "mouth": "doubt"    },
+    "Sleepy":  { "eye": "closed",  "mouth": "neutral"  }
+  }
+}

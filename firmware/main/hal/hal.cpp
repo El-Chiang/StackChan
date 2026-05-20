@@ -167,7 +167,9 @@ static void _stackchan_update_task(void* param)
             // Setup when xiaozhi ready
             GetHAL().startSntp();
             view::create_home_indicator([]() { GetHAL().requestWarmReboot(0); }, 0x81DBBD, 0x134233);
-            view::create_status_bar(0x81DBBD, 0x134233);
+            // Agent(Xiaozhi)模式：状态栏常驻、透明背景、白色图标（与主头像界面一致）
+            view::create_status_bar(0x000000, 0xFFFFFF, lv_screen_active(), /*persistent=*/true,
+                                    /*transparentBg=*/true);
             is_setup_done = true;
         }
 

@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>Penguin composited face preview</title>
+<style>
+  :root {
+    --bg: #0d0d10; --fg: #e8e8ea; --muted: #8a8a92;
+    --accent: #ffcb47; --panel: #18181c; --render-size: 480px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px;
+    background: var(--bg); color: var(--fg);
+    font: 14px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  }
+  h1 { font-size: 16px; margin: 0 0 16px; font-weight: 600; }
+  .controls {
+    display: flex; flex-wrap: wrap; gap: 20px;
+    align-items: center; margin-bottom: 16px;
+    padding: 12px 16px; background: var(--panel); border-radius: 8px;
+  }
+  .controls > div { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .controls label { color: var(--muted); }
+  .controls button, .controls select {
+    background: #2a2a30; color: var(--fg); border: 1px solid #3a3a42;
+    padding: 6px 10px; border-radius: 6px; cursor: pointer; font: inherit;
+  }
+  .controls button:hover { background: #34343c; }
+  .controls button.active { background: var(--accent); color: #1a1a1a; border-color: var(--accent); }
+  .controls input[type=range] { vertical-align: middle; width: 140px; }
+  .stage { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .pane {
+    background: var(--panel); border-radius: 8px; padding: 16px;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .pane h2 { font-size: 13px; font-weight: 500; color: var(--muted); margin: 0 0 12px; letter-spacing: 0.5px; }
+  .face {
+    position: relative;
+    width: var(--render-size); height: var(--render-size);
+    --scale: calc(var(--render-size) / 240);
+    background: #000; image-rendering: pixelated; overflow: hidden;
+  }
+  .face img, .face .sprite {
+    position: absolute;
+    image-rendering: pixelated;
+    transform-origin: top left;
+    transform: scale(var(--scale));
+  }
+  .sprite {
+    background-repeat: no-repeat;
+    background-position: 0 0;
+  }
+  .meta { margin-top: 10px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; min-height: 18px; text-align: center; }
+  .missing { color: #ff6464; }
+</style>
+</head>
+<body>
+
+<h1>Penguin composited face — preview</h1>
+
+<div class="controls">
+  <div>
+    <label>emotion</label>
+    <select id="emotion"></select>
+  </div>
+  <div>
+    <label>eye</label>
+    <select id="eye"></select>
+    <button id="blink">auto-blink</button>
+  </div>
+  <div>
+    <label>mouth</label>
+    <select id="mouth-sel"></select>
+    <button id="talk">auto-talk</button>
+  </div>
+  <div>
+    <label>gaze</label>
+    <input type="range" id="gazeX" min="-4" max="4" step="1" value="0">
+    <span id="gazeXval">0</span>
+    <button id="saccade">auto-saccade</button>
+  </div>
+</div>
+
+<div class="stage">
+  <div class="pane">
+    <h2>ALIGNED ORIGINAL</h2>
+    <div class="face"><img id="orig" src="" width="240" height="240"></div>
+    <div class="meta" id="meta-orig"></div>
+    <div style="margin-top:10px; display:flex; gap:6px; align-items:center;">
+      <button id="orig-prev">◀</button>
+      <select id="orig-pick"></select>
+      <button id="orig-next">▶</button>
+    </div>
+  </div>
+  <div class="pane">
+    <h2>COMPOSITED — base + sprites</h2>
+    <div class="face">
+      <img id="base" src="" width="240" height="240">
+      <div class="sprite" id="leye"></div>
+      <div class="sprite" id="reye"></div>
+      <div class="sprite" id="mouth"></div>
+    </div>
+    <div class="meta" id="meta-comp"></div>
+  </div>
+</div>
+
+<script src="./out/sprites/atlas.js"
+        onerror="document.body.insertAdjacentHTML('afterbegin','<p class=missing>缺少 out/sprites/atlas.js — 先跑 extract_penguin_sprites.py</p>')"></script>
+<script src="./out/aligned/alignment-report.js"></script>
+<script>
+const SPRITES = "./out/sprites/";
+const ALIGNED = "./out/aligned/";
+const ATLAS = window.PENGUIN_ATLAS;
+if (!ATLAS) throw new Error("atlas.js missing");
+
+document.getElementById("base").src = SPRITES + ATLAS.base;
+
+function setupSprite(id, def) {
+  const el = document.getElementById(id);
+  const left = def.cx - def.w / 2;
+  const top  = def.cy - def.h / 2;
+  el.style.left = `${left}px`; el.style.top = `${top}px`;
+  el.style.width = `${def.w}px`; el.style.height = `${def.h}px`;
+  el.style.backgroundImage = `url(${SPRITES + def.sprite})`;
+  el.style.backgroundSize = `${def.w * def.variants.length}px ${def.h}px`;
+}
+setupSprite("leye",  ATLAS.left_eye);
+setupSprite("reye",  ATLAS.right_eye);
+setupSprite("mouth", ATLAS.mouth);
+
+function fillSelect(id, variants) {
+  const sel = document.getElementById(id);
+  variants.forEach((label, i) => {
+    const opt = document.createElement("option");
+    opt.value = String(i); opt.textContent = `${i}: ${label}`;
+    sel.appendChild(opt);
+  });
+}
+fillSelect("eye",      ATLAS.left_eye.variants);  // shared with right
+fillSelect("mouth-sel", ATLAS.mouth.variants);
+
+const emoSel = document.getElementById("emotion");
+const NULL_EMO = "(manual)";
+const emoOpt = (label) => { const o = document.createElement("option"); o.value = label; o.textContent = label; emoSel.appendChild(o); };
+emoOpt(NULL_EMO);
+Object.keys(ATLAS.emotions || {}).filter(k => k !== "comment").forEach(emoOpt);
+
+let eyeVariant = 0, mouthVariant = 0, gazeX = 0;
+
+function applyVariant(id, def, variant) {
+  document.getElementById(id).style.backgroundPosition = `${-variant * def.w}px 0`;
+}
+function applyGaze() {
+  document.getElementById("leye").style.left = `${ATLAS.left_eye.cx  - ATLAS.left_eye.w  / 2 + gazeX}px`;
+  document.getElementById("reye").style.left = `${ATLAS.right_eye.cx - ATLAS.right_eye.w / 2 + gazeX}px`;
+}
+function render() {
+  applyVariant("leye",  ATLAS.left_eye,  eyeVariant);
+  applyVariant("reye",  ATLAS.right_eye, eyeVariant);
+  applyVariant("mouth", ATLAS.mouth,     mouthVariant);
+  applyGaze();
+  document.getElementById("eye").value       = String(eyeVariant);
+  document.getElementById("mouth-sel").value = String(mouthVariant);
+  document.getElementById("meta-comp").textContent =
+    `eye=${ATLAS.left_eye.variants[eyeVariant]}  mouth=${ATLAS.mouth.variants[mouthVariant]}  gaze=${gazeX}`;
+}
+
+document.getElementById("eye").addEventListener("change", (e) => {
+  eyeVariant = parseInt(e.target.value, 10);
+  emoSel.value = NULL_EMO;
+  stopBlink(); render();
+});
+document.getElementById("mouth-sel").addEventListener("change", (e) => {
+  mouthVariant = parseInt(e.target.value, 10);
+  emoSel.value = NULL_EMO;
+  stopTalk(); render();
+});
+emoSel.addEventListener("change", () => {
+  const e = ATLAS.emotions?.[emoSel.value];
+  if (!e || typeof e !== "object") return;
+  const eyeIdx   = ATLAS.left_eye.variants.indexOf(e.eye);
+  const mouthIdx = ATLAS.mouth.variants.indexOf(e.mouth);
+  if (eyeIdx   >= 0) eyeVariant   = eyeIdx;
+  if (mouthIdx >= 0) mouthVariant = mouthIdx;
+  render();
+});
+document.getElementById("gazeX").addEventListener("input", (e) => {
+  gazeX = parseInt(e.target.value, 10);
+  document.getElementById("gazeXval").textContent = gazeX;
+  stopSaccade(); applyGaze(); render();
+});
+
+// Auto modes
+let blinkTimer = null, talkTimer = null, saccadeTimer = null;
+function startBlink() {
+  stopBlink();
+  document.getElementById("blink").classList.add("active");
+  const openIdx   = ATLAS.left_eye.variants.indexOf("open");
+  const closedIdx = ATLAS.left_eye.variants.indexOf("closed");
+  if (openIdx < 0 || closedIdx < 0) return;
+  function blink() {
+    eyeVariant = closedIdx; render();
+    setTimeout(() => { eyeVariant = openIdx; render(); }, 120);
+    blinkTimer = setTimeout(blink, 2000 + Math.random() * 3000);
+  }
+  blinkTimer = setTimeout(blink, 1000);
+}
+function stopBlink() {
+  if (blinkTimer) { clearTimeout(blinkTimer); blinkTimer = null; }
+  document.getElementById("blink").classList.remove("active");
+}
+document.getElementById("blink").addEventListener("click", () => {
+  if (blinkTimer) stopBlink(); else startBlink();
+});
+function startTalk() {
+  stopTalk();
+  document.getElementById("talk").classList.add("active");
+  function step() {
+    mouthVariant = Math.floor(Math.random() * ATLAS.mouth.variants.length);
+    render();
+    talkTimer = setTimeout(step, 80 + Math.random() * 100);
+  }
+  step();
+}
+function stopTalk() {
+  if (talkTimer) { clearTimeout(talkTimer); talkTimer = null; }
+  document.getElementById("talk").classList.remove("active");
+}
+document.getElementById("talk").addEventListener("click", () => {
+  if (talkTimer) stopTalk(); else startTalk();
+});
+function startSaccade() {
+  stopSaccade();
+  document.getElementById("saccade").classList.add("active");
+  function step() {
+    gazeX = Math.floor(Math.random() * 9) - 4;
+    document.getElementById("gazeX").value = gazeX;
+    document.getElementById("gazeXval").textContent = gazeX;
+    applyGaze();
+    saccadeTimer = setTimeout(step, 600 + Math.random() * 1400);
+  }
+  step();
+}
+function stopSaccade() {
+  if (saccadeTimer) { clearTimeout(saccadeTimer); saccadeTimer = null; }
+  document.getElementById("saccade").classList.remove("active");
+}
+document.getElementById("saccade").addEventListener("click", () => {
+  if (saccadeTimer) stopSaccade(); else startSaccade();
+});
+
+// Manual frame picker on the left pane (no autoplay — switch to compare)
+const NAMES = window.PENGUIN_ALIGNMENT?.names || [];
+const origPick = document.getElementById("orig-pick");
+NAMES.forEach((n, i) => {
+  const o = document.createElement("option");
+  o.value = String(i); o.textContent = n;
+  origPick.appendChild(o);
+});
+let origIdx = 0;
+function showOrig() {
+  if (!NAMES.length) return;
+  document.getElementById("orig").src = ALIGNED + NAMES[origIdx];
+  document.getElementById("meta-orig").textContent = NAMES[origIdx];
+  origPick.value = String(origIdx);
+}
+origPick.addEventListener("change", () => { origIdx = parseInt(origPick.value, 10); showOrig(); });
+document.getElementById("orig-prev").addEventListener("click", () => {
+  origIdx = (origIdx - 1 + NAMES.length) % NAMES.length; showOrig();
+});
+document.getElementById("orig-next").addEventListener("click", () => {
+  origIdx = (origIdx + 1) % NAMES.length; showOrig();
+});
+showOrig();
+
+render();
+</script>
+
+</body>
+</html>

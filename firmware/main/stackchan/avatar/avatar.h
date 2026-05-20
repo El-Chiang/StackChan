@@ -5,4 +5,7 @@
  */
 #pragma once
 #include "skins/default/default.h"
+#ifdef USE_PENGUIN_SKIN
+#include "skins/penguin/penguin.h"
+#endif
 #include "decorators/decorators.h"
