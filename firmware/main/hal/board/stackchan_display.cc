@@ -361,6 +361,10 @@ void StackChanAvatarDisplay::SetEmotion(const char* emotion)
             stackchan.removeModifier(idle_expression_modifier_id_);
             idle_expression_modifier_id_ = -1;
         }
+        if (idle_sound_modifier_id_ >= 0) {
+            stackchan.removeModifier(idle_sound_modifier_id_);
+            idle_sound_modifier_id_ = -1;
+        }
 
         // Return to default pose
         auto& motion = GetStackChan().motion();
@@ -525,6 +529,7 @@ void StackChanAvatarDisplay::SetStatus(const char* status)
                 CreateIdleMotionModifier();
             }
             idle_expression_modifier_id_ = stackchan.addModifier(std::make_unique<IdleExpressionModifier>());
+            idle_sound_modifier_id_      = stackchan.addModifier(std::make_unique<IdleSoundModifier>());
         }
 
         _is_xiaozhi_idle = true;
@@ -536,6 +541,10 @@ void StackChanAvatarDisplay::SetStatus(const char* status)
             idle_motion_modifier_id_ = -1;
             stackchan.removeModifier(idle_expression_modifier_id_);
             idle_expression_modifier_id_ = -1;
+        }
+        if (idle_sound_modifier_id_ >= 0) {
+            stackchan.removeModifier(idle_sound_modifier_id_);
+            idle_sound_modifier_id_ = -1;
         }
 
         // if (!is_listening) {

@@ -9,6 +9,8 @@
 #include "../utils/random.h"
 #include <smooth_ui_toolkit.hpp>
 #include <hal/hal.h>
+#include <hal/board/hal_bridge.h>
+#include <assets/assets.h>
 #include <cstdint>
 #include <memory>
 
@@ -69,8 +71,9 @@ private:
     void handle_swipe(Modifiable& stackchan)
     {
         auto& avatar = stackchan.avatar();
+        uint32_t now = GetHAL().millis();
 
-        // 首次进入开心状态，记录原始信息
+        // 首次进入反应状态，记录原始信息，供之后恢复
         if (!_in_happy_state) {
             _in_happy_state = true;
             _prev_emotion   = avatar.getEmotion();
@@ -79,8 +82,21 @@ private:
             _prev_pitch     = angles.y;
         }
 
+        // 每次新的抚摸都重新随机表情并播放配对语音；
+        // 冷却避免连续快速抚摸导致语音堆叠（PlaySound 是排队播放）
+        if (now - _last_reaction_tick >= kReactionCooldownMs) {
+            _last_reaction_tick = now;
+            if (Random::getInstance().getInt(0, 1) == 0) {
+                _reaction_emotion = avatar::Emotion::Happy;
+                hal_bridge::app_play_sound(OGG_GUGU_GAGA);
+            } else {
+                _reaction_emotion = avatar::Emotion::Doubt;  // 惊讶
+                hal_bridge::app_play_sound(OGG_EN_QUESTION);
+            }
+        }
+
         // 视觉反馈
-        avatar.setEmotion(avatar::Emotion::Happy);
+        avatar.setEmotion(_reaction_emotion);
 
         // 添加爱心装饰
         int duration = Random::getInstance().getInt(1500, 2500);
@@ -103,7 +119,8 @@ private:
         stackchan.avatar().setEmotion(_prev_emotion);
         stackchan.motion().moveWithSpeed(_prev_yaw, _prev_pitch, 200);
 
-        _in_happy_state = false;
+        _in_happy_state     = false;
+        _last_reaction_tick = 0;  // 下次摸头立即可反应
     }
 
     void perform_pet_motion(Modifiable& stackchan)
@@ -146,7 +163,10 @@ private:
     volatile bool _event_release = false;
 
     // 状态机相关
+    static constexpr uint32_t kReactionCooldownMs = 800;  // 两次随机反应（表情+语音）的最小间隔
     bool _in_happy_state     = false;
+    avatar::Emotion _reaction_emotion = avatar::Emotion::Happy;  // 本次摸头随机到的表情
+    uint32_t _last_reaction_tick = 0;  // 上次触发反应的时间戳
     bool _is_waiting_restore = false;
     uint32_t _restore_tick   = 0;
     uint32_t _restore_delay_ms;

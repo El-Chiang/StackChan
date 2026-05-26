@@ -17,6 +17,7 @@ private:
     int speaking_modifier_id_           = -1;
     int idle_motion_modifier_id_        = -1;
     int idle_expression_modifier_id_    = -1;
+    int idle_sound_modifier_id_         = -1;
     int blink_modifier_id_              = -1;
     bool is_sleeping_                   = false;
     uint8_t idle_motion_level_          = 2;
