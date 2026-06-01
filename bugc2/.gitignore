@@ -1,5 +1,2 @@
 # PlatformIO 构建产物
 .pio/
-
-# 大体积示例(方向图标位图数组,未使用)
-examples/bugc_robot_test/
